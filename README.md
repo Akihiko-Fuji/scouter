@@ -24,9 +24,9 @@ Select additional language data:
 
  The default installation location (C:\Program Files\Tesseract-OCR\tesseract.exe) is recommended, but the reference location can be changed in the configuration file.
 
-# Files required for the program to work
-Scouter.exe 
-config.ini
+# Files required for the program to work<BR>
+Scouter.exe <BR>
+config.ini<BR>
 
 No folder is specified. There is no installer. No registry entries. Place the above files in a single folder.
 
