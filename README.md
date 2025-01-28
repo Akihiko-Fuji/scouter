@@ -10,7 +10,7 @@ The tool is particularly useful for processing text and numbers from screenshots
 Convert text embedded in images, text that is programmatically expanded to the screen and cannot be copied, tables secretly screen-captured in a web conference, or materials uploaded to speakerdeck.com into text.
 
 # Prerequisites
-　This program uses an OCR library called Tesseract, so please download it from the URL below and install it beforehand.
+This program uses an OCR library called Tesseract, so please download it from the URL below and install it beforehand.
 for Windows see https://github.com/UB-Mannheim/tesseract/wiki
 
 During installation, several checks must be made to handle the Japanese language.
@@ -31,16 +31,16 @@ config.ini
 No folder is specified. There is no installer. No registry entries. Place the above files in a single folder.
 
 # Description of config.ini
-The following three settings can be made in the configuration file. Normally, no changes are required.
-tesseract_cmd = C:\Program Files\Tesseract-OCR\tesseract.exe
-Specify the location where Tesseract is saved for operation. If you did not change the location during installation, you do not need to change this value.
+The following three settings can be made in the configuration file. Normally, no changes are required.<BR>
+tesseract_cmd = C:\Program Files\Tesseract-OCR\tesseract.exe<BR>
+Specify the location where Tesseract is saved for operation. If you did not change the location during installation, you do not need to change this value.<BR>
 
-language = jpn+eng
-　Specify the language used for OCR processing. The standard language is Japanese (jpn).
+language = jpn<BR>
+Specify the language used for OCR processing. The standard language is Japanese (jpn).
 For English documents, set this to eng. For documents that contain both English and Japanese, you can specify jpn+eng, etc.
 
-enable_logging = False
-　This mode records the results of OCR processing in a log file. If you want to keep a history of data processing, including checking for errors, change this to True.
+enable_logging = False<BR>
+This mode records the results of OCR processing in a log file. If you want to keep a history of data processing, including checking for errors, change this to True.
 
 # Usage and Functions
 ![demo](https://github.com/Akihiko-Fuji/scouter/blob/main/demo.gif?raw=true)
@@ -56,7 +56,7 @@ text / text extraction mode ... expands the extracted text string
 table / tabular mode ... which numbers are extracted, values & comma delimited
 
 2. mode setting
-You can select the data processing mode. See (1) for mode and processing.
+You can select the data processing mode. See 1. for mode and processing.
 
 3. OCR Processing
 You can select the OCR reading processing method. This utilizes Tesseract's PSM function for switching the reading method. If the values cannot be read properly, try changing this processing.
