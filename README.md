@@ -68,5 +68,8 @@ You can change to the dark mode, which is less noticeable even if the Window is 
 This function copies the read result to the clipboard. Text extraction mode and tabular mode (1) copy the reading results as they are.
 In the calculation formula and total value mode, the calculation formula is not copied, but “only the total value of the calculation result” is copied.
 
+# Download URL:
+https://github.com/Akihiko-Fuji/scouter/blob/4993043b3f8b07fe28671ff5142889549ded97d3/scouter.zip
+
 # Important point
 The program is designed for Japanese. The comments of the program are written in both English and Japanese, so the program can be used in other languages if you modify the UI, such as menus.
