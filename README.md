@@ -48,28 +48,28 @@ This mode records the results of OCR processing in a log file. If you want to ke
 Demonstration combined with snipping tool, a standard Windows screen capture.
  Double-click the executable file with the icon to start it.
  
-1. Reading result
+1. Reading result<BR>
 　Displays the result of OCR processing based on the image in the clipboard.
 
-calculation / calculation formula and total value mode ... which numbers were extracted, value & total value of calculation
-text / text extraction mode ... expands the extracted text string
-table / tabular mode ... which numbers are extracted, values & comma delimited
+  calculation formula and total value mode ... which numbers were extracted, value & total value of calculation<BR>
+  text extraction mode ... expands the extracted text string<BR>
+  tabular mode ... which numbers are extracted, values & comma delimited<BR>
 
-2. mode setting
-You can select the data processing mode. See 1. for mode and processing.
+2. Mode setting<BR>
+  You can select the data processing mode. See 1. for mode and processing.
 
-3. OCR Processing
-You can select the OCR reading processing method. This utilizes Tesseract's PSM function for switching the reading method. If the values cannot be read properly, try changing this processing.
+3. OCR Processing<BR>
+  You can select the OCR reading processing method. This utilizes Tesseract's PSM function for switching the reading method. If the values cannot be read properly, try changing this processing.
 
-4. Dark mode switching
-You can change to the dark mode, which is less noticeable even if the Window is left open.
+4. Dark mode switching<BR>
+  You can change to the dark mode, which is less noticeable even if the Window is left open.
 
-5. Copying the result
-This function copies the read result to the clipboard. Text extraction mode and tabular mode 1. copy the reading results as they are.
-In the calculation formula and total value mode, the calculation formula is not copied, but “only the total value of the calculation result” is copied.
+5. Copying the result<BR>
+  This function copies the read result to the clipboard. Text extraction mode and tabular mode 1. copy the reading results as they are.
+  In the calculation formula and total value mode, the calculation formula is not copied, but “only the total value of the calculation result” is copied.
 
-# Download URL:
+# Download URL:<BR>
 https://github.com/Akihiko-Fuji/scouter/raw/refs/heads/main/scouter.zip
 
-# Important point
-The program is designed for Japanese. The comments of the program are written in both English and Japanese, so the program can be used in other languages if you modify the UI, such as menus.
+# Important point<BR>
+  The program is designed for Japanese. The comments of the program are written in both English and Japanese, so the program can be used in other languages if you modify the UI, such as menus.
