@@ -44,8 +44,6 @@ enable_logging = False
 
 # Usage and Functions
 　Double-click the executable file with the icon to start it.
-
-![[Function Introduction Video](https://www.youtube.com/watch?v=eaOrWP1yeno)](https://www.youtube.com/watch?v=eaOrWP1yeno)
  
 1. Reading result
 　Displays the result of OCR processing based on the image in the clipboard.
