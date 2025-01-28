@@ -43,7 +43,10 @@ enable_logging = False
 　This mode records the results of OCR processing in a log file. If you want to keep a history of data processing, including checking for errors, change this to True.
 
 # Usage and Functions
-　Double-click the executable file with the icon to start it.
+![demo](https://github.com/Akihiko-Fuji/scouter/blob/main/demo.gif?raw=true)
+
+Demonstration combined with snipping tool, a standard Windows screen capture.
+ Double-click the executable file with the icon to start it.
  
 1. Reading result
 　Displays the result of OCR processing based on the image in the clipboard.
