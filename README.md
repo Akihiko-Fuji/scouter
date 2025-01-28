@@ -65,7 +65,7 @@ You can select the OCR reading processing method. This utilizes Tesseract's PSM 
 You can change to the dark mode, which is less noticeable even if the Window is left open.
 
 5. Copying the result
-This function copies the read result to the clipboard. Text extraction mode and tabular mode (1) copy the reading results as they are.
+This function copies the read result to the clipboard. Text extraction mode and tabular mode 1. copy the reading results as they are.
 In the calculation formula and total value mode, the calculation formula is not copied, but “only the total value of the calculation result” is copied.
 
 # Download URL:
