@@ -3,7 +3,7 @@
 """
 Clipboard Scouter: A tool for OCR processing of clipboard images
 Author: Akihiko Fujita
-Version: 1.2
+Version: 1.3
 
 Copyright 2025 Akihiko Fujita
 
@@ -120,14 +120,24 @@ class ImageProcessor:
         try:
             processed_image = self.preprocess_image(image)
             custom_config = f'--psm {psm_mode}'
-            return pytesseract.image_to_string(
+            raw_text = pytesseract.image_to_string(
                 processed_image,
                 lang=self.config.language,
                 config=custom_config
             )
+
+            # エンコードチェックと修正
+            try:
+                raw_text.encode("utf-8").decode("utf-8")
+            except UnicodeDecodeError:
+                logging.warning("OCR結果が文字化けしています。修正を試みます。")
+                raw_text = raw_text.encode("shift_jis").decode("utf-8", errors="replace")
+
+            return raw_text
         except Exception as e:
             logging.error(f"OCR extraction error: {str(e)}")
             return ""
+
 
 class TextProcessor:
     """Handles text processing operations
@@ -150,10 +160,17 @@ class TextProcessor:
     def extract_table(text: str) -> str:
         """Convert text to table format
            テキストを表形式に変換する"""
+        try:
+            # UTF-8でエンコードが正しいか確認
+            text.encode("utf-8").decode("utf-8")
+        except UnicodeDecodeError:
+            logging.warning("テキストのエンコードが不正です。修正します。")
+            text = text.encode("shift_jis").decode("utf-8", errors="replace")
+
         # Split the text into lines and process each line individually / テキストを行に分割し、それぞれの行を処理
         lines = text.splitlines()
         return "\n".join(", ".join(re.findall(r'\S+', line))
-                        for line in lines if line.strip())  # Remove empty lines / 空行を削除
+                     for line in lines if line.strip())  # Remove empty lines / 空行を削除
 
 class Theme:
     """Manages application theming
@@ -533,7 +550,14 @@ class OCRWindow:
         """
         # Extract text from the clipboard image / クリップボード画像からテキストを抽出
         text = self.image_processor.extract_text(image, self.psm_mode.get().split(":")[0])
-        
+
+        # Check the encoding of OCR results / OCR結果のエンコードを確認
+        try:
+            text.encode("utf-8").decode("utf-8")  # 正常なら何も起きない
+        except UnicodeDecodeError:
+            logging.warning("OCR結果が文字化けしている可能性があります。適切に修正します。")
+            text = text.encode("shift_jis").decode("utf-8", errors="replace")
+
         if self.mode.get() == ProcessingMode.CALCULATION.value:
             # Handle calculation mode / 計算モードの処理
             formula, total = self.text_processor.extract_numbers_and_calculate(text)
@@ -543,16 +567,17 @@ class OCRWindow:
                 self.log_result("calculation", content)
             else:
                 self.update_display("数字が見つかりません")
-        
+
         elif self.mode.get() == ProcessingMode.TABLE.value:
             # Handle table mode / テーブルモードの処理
             table_content = self.text_processor.extract_table(text)
             self.update_display(table_content)
             self.log_result("table", table_content)
-        
+
         else:  # Text mode / テキストモード
             self.update_display(text.strip())
             self.log_result("text", text.strip())
+            logging.debug(f"OCR extracted text: {text}")
 
     def update_display(self, content: str) -> None:
         """Update the display with new content.
@@ -622,7 +647,16 @@ class OCRWindow:
         """
         # Check if logging is enabled in the configuration / 設定でロギングが有効かを確認
         if self.config.enable_logging:
-            # Log the processing mode and content / 処理モードと内容をログに記録
+            try:
+                # UTF-8にエンコードされているか確認し、不正な場合は修正
+                content = content.encode("utf-8").decode("utf-8")
+            except UnicodeDecodeError:
+                logging.warning("文字化けが発生しているため修正中")
+                content = content.encode("shift_jis").decode("utf-8", errors="replace")
+
+            # ログファイルに追記
+            with open("ocr_log.txt", "a", encoding="utf-8") as log_file:
+                log_file.write(f"Mode: {mode}\n{content}\n")
             logging.info(f"Mode: {mode}\n{content}")
 
 def main():
