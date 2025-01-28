@@ -1,6 +1,13 @@
 # Abstract:
 
-Clipboard Scouter is an OCR (Optical Character Recognition) processing tool designed to extract and analyze text and numbers from images copied to the clipboard. It offers various processing modes including text extraction, calculation-based operations, and table conversion. Users can interact with the tool through a GUI developed using Python's Tkinter library, where they can select the processing mode, view results, and toggle between light and dark themes. The application utilizes the Tesseract OCR engine for text recognition, with customization options for OCR modes and language settings. It also features logging capabilities to track errors and operations, and supports configuration through an INI file. The tool is particularly useful for processing text and numbers from screenshots or clipboard images, performing automatic calculations, and formatting output into tables.
+Clipboard Scouter is an OCR (Optical Character Recognition) processing tool designed to extract and analyze text and numbers from images copied to the clipboard.
+It offers various processing modes including text extraction, calculation-based operations, and table conversion.
+Users can interact with the tool through a GUI developed using Python's Tkinter library, where they can select the processing mode, view results, and toggle between light and dark themes.
+The application utilizes the Tesseract OCR engine for text recognition, with customization options for OCR modes and language settings.
+It also features logging capabilities to track errors and operations, and supports configuration through an INI file.
+The tool is particularly useful for processing text and numbers from screenshots or clipboard images, performing automatic calculations, and formatting output into tables.
+
+Convert text embedded in images, text that is programmatically expanded to the screen and cannot be copied, tables secretly screen-captured in a web conference, etc. into text.
 
 # Prerequisites
 　This program uses an OCR library called Tesseract, so please download it from the URL below and install it beforehand.
@@ -15,7 +22,7 @@ Select additional language data:
  Click “+” under “Additional language data (download)” to expand it.
  Check the following Japanese ~ item from the expanded items.
 
- The default installation location (C:\Program Files\Tesseract-OCR\tesseract.exe) is recommended.
+ The default installation location (C:\Program Files\Tesseract-OCR\tesseract.exe) is recommended, but the reference location can be changed in the configuration file.
 
 # Files required for the program to work
 Scouter.exe 
@@ -28,7 +35,7 @@ The following three settings can be made in the configuration file. Normally, no
 tesseract_cmd = C:\Program Files\Tesseract-OCR\tesseract.exe
 Specify the location where Tesseract is saved for operation. If you did not change the location during installation, you do not need to change this value.
 
-language = jpn
+language = jpn+eng
 　Specify the language used for OCR processing. The standard language is Japanese (jpn).
 For English documents, set this to eng. For documents that contain both English and Japanese, you can specify jpn+eng, etc.
 
