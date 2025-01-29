@@ -7,7 +7,9 @@ The application utilizes the Tesseract OCR engine for text recognition, with cus
 It also features logging capabilities to track errors and operations, and supports configuration through an INI file.
 The tool is particularly useful for processing text and numbers from screenshots or clipboard images, performing automatic calculations, and formatting output into tables.
 
-Convert text embedded in images, text that is programmatically expanded to the screen and cannot be copied, tables secretly screen-captured in a web conference, or materials uploaded to speakerdeck.com into text.
+Text embedded in images.
+Text you want to search for to solve a problem but can't copy such as a VBA error window,and tables secretly screen-captured in a web conference.
+And we can convert material uploaded to speakerdeck.com into text.
 
 # Prerequisites
 This program uses an OCR library called Tesseract, so please download it from the URL below and install it beforehand.
