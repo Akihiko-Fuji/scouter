@@ -75,3 +75,9 @@ https://github.com/Akihiko-Fuji/scouter/raw/refs/heads/main/scouter.zip
 
 # Important point<BR>
   The program is designed for Japanese. The comments of the program are written in both English and Japanese, so the program can be used in other languages if you modify the UI, such as menus.
+
+# Version<BR>
+ver 1.3 Since Japanese results may continue to be garbled, we have modified the process so that the results are decoded with multiple patterns and the appropriate character strings are generated. 
+ver 1.2 Added UTF-8 to avoid garbled Japanese characters after OCR processing.
+ver 1.1 Added dark mode.
+ver 1.0 The first version released. It has the ability to display the sum of the numbers read, extract strings, and output a comma-separated csv.
