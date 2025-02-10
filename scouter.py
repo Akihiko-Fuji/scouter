@@ -35,6 +35,8 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, List
 from enum import Enum
 import logging
+import sys
+import locale
 
 # Configure logging / ログの設定
 logging.basicConfig(
@@ -42,6 +44,12 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+# 最初にエンコードを明示しておく
+if hasattr(sys, 'frozen'):
+    # Ensure proper encoding for compiled environment
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
 
 class ProcessingMode(Enum):
     """Enumeration for different processing modes with display text
@@ -115,52 +123,56 @@ class ImageProcessor:
         return enhancer.enhance(2.0)
 
     def extract_text(self, image: Image.Image, psm_mode: str) -> str:
-        """Extract text from image using specified PSM mode with improved encoding handling
-           指定されたPSMモードを使用して画像からテキストを抽出し、エンコーディング処理を改善"""
+        """Extract text from image with improved encoding handling for compiled environment"""
         try:
             processed_image = self.preprocess_image(image)
             custom_config = f'--psm {psm_mode}'
             
-            # First attempt with UTF-8 / 最初にUTF-8で正常にデコードができるかを試す
+            # Force UTF-8 output from Tesseract
+            if hasattr(sys, 'frozen'):
+                custom_config += ' --encoding UTF8'
+            
             raw_text = pytesseract.image_to_string(
                 processed_image,
                 lang=self.config.language,
                 config=custom_config
             )
 
-            # Try different encoding combinations to handle potential garbled text
-            # 文字化けの可能性があるテキストを処理するために、さまざまなエンコーディングの組み合わせを試す
-            encodings = ['utf-8', 'shift_jis', 'euc-jp', 'iso2022_jp']
-            
-            for enc in encodings:
+            # Handle encoding in compiled environment
+            if hasattr(sys, 'frozen'):
                 try:
-                    decoded_text = raw_text.encode(enc).decode('utf-8')
-                    if all(ord(char) < 0x10000 for char in decoded_text):
-                        return decoded_text
+                    # First try UTF-8
+                    raw_text = raw_text.encode('utf-8', errors='ignore').decode('utf-8')
+                except UnicodeError:
+                    # Fallback to system locale
+                    system_encoding = locale.getpreferredencoding()
+                    raw_text = raw_text.encode(system_encoding, errors='ignore').decode('utf-8')
 
-                except (UnicodeEncodeError, UnicodeDecodeError):
-                    continue
-
-            # If no encoding worked perfectly, try a more aggressive approach
-            # どのエンコーディングうまくいかなかった場合は、よりデータクリーニングをおこなう
-            try:
-                # Replace invalid characters with Unicode replacement character / 無効な文字をUnicodeの置換文字で置き換える
-                bytes_text = raw_text.encode('utf-8', errors='ignore')
-                cleaned_text = bytes_text.decode('utf-8', errors='replace')
-                
-                # Additional cleaning for common OCR artifacts / OCR向けのデータクリーニングを試す
-                cleaned_text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', cleaned_text)
-                cleaned_text = re.sub(r'[^\u0020-\u007E\u3000-\u30FF\u4E00-\u9FFF]', '', cleaned_text)
-                
-                return cleaned_text
-
-            except Exception as e:
-                logging.error(f"Final text cleaning failed: {str(e)}")
-                return raw_text  # Return original text as last resort
+            # Clean up text
+            cleaned_text = self._clean_japanese_text(raw_text)
+            return cleaned_text
 
         except Exception as e:
             logging.error(f"OCR extraction error: {str(e)}")
             return ""
+
+    def _clean_japanese_text(self, text: str) -> str:
+        """Clean Japanese text with improved character handling"""
+        # Remove control characters
+        text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)
+        
+        # Keep only valid Japanese characters and basic punctuation
+        valid_chars = (
+            r'[\u3000-\u303F]'   # Japanese punctuation / 句読点
+            r'|[\u3040-\u309F]'  # Hiragana / ひらがな
+            r'|[\u30A0-\u30FF]'  # Katakana / カタカナ
+            r'|[\u4E00-\u9FFF]'  # Kanji / 漢字
+            r'|[\uFF00-\uFFEF]'  # Full-width characters / 全角文字
+            r'|[\u0020-\u007E]'  # Basic Latin / 英数
+        )
+        
+        text = ''.join(char for char in text if re.match(valid_chars, char))
+        return text
 
 class TextProcessor:
     """Handles text processing operations
@@ -181,56 +193,41 @@ class TextProcessor:
 
     @staticmethod
     def extract_table(text: str) -> str:
-        """Convert text to table format
-           テキストを表形式に変換する"""
+        """Convert text to table format with improved encoding handling"""
         try:
-            # UTF-8でエンコードが正しいか確認
-            text.encode("utf-8").decode("utf-8")
-        except UnicodeDecodeError:
-            logging.warning("テキストのエンコードが不正です。修正します。")
-            text = text.encode("shift_jis").decode("utf-8", errors="replace")
-
-        # Split the text into lines and process each line individually / テキストを行に分割し、それぞれの行を処理
-        lines = text.splitlines()
-        return "\n".join(", ".join(re.findall(r'\S+', line))
-                     for line in lines if line.strip())  # Remove empty lines / 空行を削除
-
-    def extract_table(text: str) -> str:
-        """Convert text to table format with improved encoding handling
-           テキストを表形式に変換し、エンコーディング処理を改善"""
-        try:
-            #  Try different encodings / いくつかのエンコーディングを試す
-            encodings = ['utf-8', 'shift_jis', 'euc-jp', 'iso2022_jp']
-            decoded_text = text
-            
-            for enc in encodings:
+            if hasattr(sys, 'frozen'):
+                # Handle encoding in compiled environment
+                system_encoding = locale.getpreferredencoding()
                 try:
-                    decoded_text = text.encode(enc).decode('utf-8')
-                    if all(ord(char) < 0x10000 for char in decoded_text):
-                        break
-                except (UnicodeEncodeError, UnicodeDecodeError):
-                    continue
-
-            # Clean up the text / テキストのクリーンアップをおこなう
-            decoded_text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', decoded_text)
-            decoded_text = re.sub(r'[^\u0020-\u007E\u3000-\u30FF\u4E00-\u9FFF]', '', decoded_text)
-
-            # Split the text into lines and process each line / テキストを行に分割し、各行を処理する
-            lines = decoded_text.splitlines()
+                    text = text.encode(system_encoding).decode('utf-8', errors='ignore')
+                except UnicodeError:
+                    text = text.encode('utf-8', errors='ignore').decode('utf-8')
+            
+            # Clean and process the text
+            lines = text.splitlines()
             processed_lines = []
             
             for line in lines:
                 if line.strip():
-                    # Extract valid characters and join with commas / 有効な文字を抽出し、表となるようカンマで連結する
-                    valid_parts = re.findall(r'[\u0020-\u007E\u3000-\u30FF\u4E00-\u9FFF]+', line)
-                    processed_lines.append(", ".join(valid_parts))
+                    # Clean each line
+                    cleaned_line = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', line)
+                    valid_chars = (
+                        r'[\u3000-\u303F]'   # Japanese punctuation / 句読点
+                        r'|[\u3040-\u309F]'  # Hiragana /ひらがな
+                        r'|[\u30A0-\u30FF]'  # Katakana / カタカナ
+                        r'|[\u4E00-\u9FFF]'  # Kanji / 漢字
+                        r'|[\uFF00-\uFFEF]'  # Full-width characters / 全角文字
+                        r'|[\u0020-\u007E]'  # Basic Latin / 英数
+                    )
+                    cleaned_line = ''.join(char for char in cleaned_line if re.match(valid_chars, char))
+                    if cleaned_line:
+                        processed_lines.append(cleaned_line)
             
             return "\n".join(processed_lines)
 
         except Exception as e:
             logging.error(f"Table extraction error: {str(e)}")
             return text
-
 
 class Theme:
     """Manages application theming
