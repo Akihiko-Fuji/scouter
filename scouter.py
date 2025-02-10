@@ -5,6 +5,8 @@ Clipboard Scouter: A tool for OCR processing of clipboard images
 Author: Akihiko Fujita
 Version: 1.3
 
+Copyright 2025 Akihiko Fujita
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -113,29 +115,52 @@ class ImageProcessor:
         return enhancer.enhance(2.0)
 
     def extract_text(self, image: Image.Image, psm_mode: str) -> str:
-        """Extract text from image using specified PSM mode
-           指定されたPSMモードを使用して画像からテキストを抽出します"""
+        """Extract text from image using specified PSM mode with improved encoding handling
+           指定されたPSMモードを使用して画像からテキストを抽出し、エンコーディング処理を改善"""
         try:
             processed_image = self.preprocess_image(image)
             custom_config = f'--psm {psm_mode}'
+            
+            # First attempt with UTF-8 / 最初にUTF-8で正常にデコードができるかを試す
             raw_text = pytesseract.image_to_string(
                 processed_image,
                 lang=self.config.language,
                 config=custom_config
             )
 
-            # エンコードチェックと修正
-            try:
-                raw_text.encode("utf-8").decode("utf-8")
-            except UnicodeDecodeError:
-                logging.warning("OCR結果が文字化けしています。修正を試みます。")
-                raw_text = raw_text.encode("shift_jis").decode("utf-8", errors="replace")
+            # Try different encoding combinations to handle potential garbled text
+            # 文字化けの可能性があるテキストを処理するために、さまざまなエンコーディングの組み合わせを試す
+            encodings = ['utf-8', 'shift_jis', 'euc-jp', 'iso2022_jp']
+            
+            for enc in encodings:
+                try:
+                    decoded_text = raw_text.encode(enc).decode('utf-8')
+                    if all(ord(char) < 0x10000 for char in decoded_text):
+                        return decoded_text
 
-            return raw_text
+                except (UnicodeEncodeError, UnicodeDecodeError):
+                    continue
+
+            # If no encoding worked perfectly, try a more aggressive approach
+            # どのエンコーディングうまくいかなかった場合は、よりデータクリーニングをおこなう
+            try:
+                # Replace invalid characters with Unicode replacement character / 無効な文字をUnicodeの置換文字で置き換える
+                bytes_text = raw_text.encode('utf-8', errors='ignore')
+                cleaned_text = bytes_text.decode('utf-8', errors='replace')
+                
+                # Additional cleaning for common OCR artifacts / OCR向けのデータクリーニングを試す
+                cleaned_text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', cleaned_text)
+                cleaned_text = re.sub(r'[^\u0020-\u007E\u3000-\u30FF\u4E00-\u9FFF]', '', cleaned_text)
+                
+                return cleaned_text
+
+            except Exception as e:
+                logging.error(f"Final text cleaning failed: {str(e)}")
+                return raw_text  # Return original text as last resort
+
         except Exception as e:
             logging.error(f"OCR extraction error: {str(e)}")
             return ""
-
 
 class TextProcessor:
     """Handles text processing operations
@@ -169,6 +194,43 @@ class TextProcessor:
         lines = text.splitlines()
         return "\n".join(", ".join(re.findall(r'\S+', line))
                      for line in lines if line.strip())  # Remove empty lines / 空行を削除
+
+    def extract_table(text: str) -> str:
+        """Convert text to table format with improved encoding handling
+           テキストを表形式に変換し、エンコーディング処理を改善"""
+        try:
+            #  Try different encodings / いくつかのエンコーディングを試す
+            encodings = ['utf-8', 'shift_jis', 'euc-jp', 'iso2022_jp']
+            decoded_text = text
+            
+            for enc in encodings:
+                try:
+                    decoded_text = text.encode(enc).decode('utf-8')
+                    if all(ord(char) < 0x10000 for char in decoded_text):
+                        break
+                except (UnicodeEncodeError, UnicodeDecodeError):
+                    continue
+
+            # Clean up the text / テキストのクリーンアップをおこなう
+            decoded_text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', decoded_text)
+            decoded_text = re.sub(r'[^\u0020-\u007E\u3000-\u30FF\u4E00-\u9FFF]', '', decoded_text)
+
+            # Split the text into lines and process each line / テキストを行に分割し、各行を処理する
+            lines = decoded_text.splitlines()
+            processed_lines = []
+            
+            for line in lines:
+                if line.strip():
+                    # Extract valid characters and join with commas / 有効な文字を抽出し、表となるようカンマで連結する
+                    valid_parts = re.findall(r'[\u0020-\u007E\u3000-\u30FF\u4E00-\u9FFF]+', line)
+                    processed_lines.append(", ".join(valid_parts))
+            
+            return "\n".join(processed_lines)
+
+        except Exception as e:
+            logging.error(f"Table extraction error: {str(e)}")
+            return text
+
 
 class Theme:
     """Manages application theming
