@@ -77,7 +77,13 @@ https://github.com/Akihiko-Fuji/scouter/raw/refs/heads/main/scouter.zip
   The program is designed for Japanese. The comments of the program are written in both English and Japanese, so the program can be used in other languages if you modify the UI, such as menus.
 
 # Version<BR>
-ver 1.3 Since Japanese results were sometimes garbled, the decoding process judgment of character codes was reviewed. In addition, to solve the problem of program processing stopping when a large amount of data other than images is copied to the clipboard, such as when a large number of cells are copied in Excel, a process to detect the type of data pasted to the clipboard before processing was added.<BR>
-ver 1.2 Added UTF-8 to avoid garbled Japanese characters after OCR processing.<BR>
-ver 1.1 Added dark mode.<BR>
-ver 1.0 The first version released. It has the ability to display the sum of the numbers read, extract strings, and output a comma-separated csv.<BR>
+ver 1.3<BR>
+Since Japanese results were sometimes garbled, the decoding process judgment of character codes was reviewed.<BR>
+In addition, to solve the problem of program processing stopping when a large amount of data other than images is copied to the clipboard, such as when a large number of cells are copied in Excel, a process to detect the type of data pasted to the clipboard before processing was added.<BR>
+Added more comments during the python program. I usually do not write so much detail, but it is a kindness that has gone too far.<BR>
+ver 1.2<BR>
+Added UTF-8 to avoid garbled Japanese characters after OCR processing.<BR>
+ver 1.1<BR>
+Added dark mode.<BR>
+ver 1.0<BR>
+The first version released. It has the ability to display the sum of the numbers read, extract strings, and output a comma-separated csv.<BR>
