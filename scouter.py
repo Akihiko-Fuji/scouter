@@ -122,7 +122,7 @@ class ImageProcessor:
         return enhancer.enhance(2.0)
 
     def extract_text(self, image: Image.Image, psm_mode: str) -> str:
-        """Extract text from image with improved encoding handling for compiled environment"""
+        """Extract text from image with improved encoding handling for compiled environment / 画像からのテキスト抽出"""
 
         try:
             processed_image = self.preprocess_image(image)
@@ -157,7 +157,7 @@ class ImageProcessor:
             return ""
 
     def _clean_japanese_text(self, text: str) -> str:
-        """Clean Japanese text with improved character handling / より良い文字処理で日本語テキストをクリーンアップ"""
+        """Clean Japanese text with improved character handling / 日本語テキストをクリーンアップ"""
 
         # Remove control characters / 制御文字を削除
         text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)
@@ -232,6 +232,7 @@ class TextProcessor:
 
 class Theme:
     """Manages application theming / アプリケーションのテーマ設定"""
+
     DARK = {
         "window_bg": "#2E2E2E",  # Background color of the app window                 / アプリのウィンドウ背景色
         "window_fg": "#FFFFFF",  # Foreground color of the app window                 / アプリのウィンドウ前景色（主にラベルのテキスト）
@@ -264,8 +265,8 @@ class Theme:
     }
 
 class OCRWindow:
-    """Main application window
-       メイン・ウィンドウ"""
+    """Main application window / メインウィンドウ"""
+    
     def __init__(self, root: tk.Tk):
         # Initialize configuration and processors / 設定とプロセッサを初期化
         self.config = OCRConfig.from_config_file()
@@ -275,7 +276,8 @@ class OCRWindow:
         self.previous_image = None
 
     def setup_window(self, root: tk.Tk) -> None:
-        """Initialize the main window and its components / """
+        """Initialize the main window and its components / メイン・ウィンドウを初期化する"""
+
         self.root = root
         self.root.title("クリップボード スカウター")  # Set the title of the application / アプリケーションのタイトルを設定
         self.root.geometry("420x420")                 # Set the window size              / ウィンドウサイズを設定
@@ -372,8 +374,8 @@ class OCRWindow:
         )
 
     def configure_dropdown_menu(self, menu: tk.Menu) -> None:
-        """Configure colors for dropdown menu
-           ドロップダウンメニューの色を設定する"""
+        """Configure colors for dropdown menu / ドロップダウンメニューの色を設定する"""
+
         theme = Theme.DARK if self.dark_mode.get() else Theme.LIGHT  # Select theme based on current mode / 現在のモードに基づいてテーマを選択
         
         menu.configure(
@@ -386,8 +388,8 @@ class OCRWindow:
         )
 
     def configure_option_menu_style(self, option_menu: ttk.OptionMenu) -> None:
-        """Configure the style for option menus including their dropdowns
-           オプションメニューとそのドロップダウンを含むスタイルを設定する"""
+        """Configure the style for option menus including their dropdowns / オプションメニューとそのドロップダウンを含むスタイルを設定する"""
+
         menu = option_menu["menu"]
         theme = Theme.DARK if self.dark_mode.get() else Theme.LIGHT  # Use theme-specific colors / テーマごとの色を使用
         
@@ -399,8 +401,8 @@ class OCRWindow:
             activeforeground=theme["active_fg"],  # Active item text color / アクティブ項目の文字色
         )
     def create_copy_button(self) -> None:
-        """Create the copy button with consistent styling
-           一貫性のあるスタイルでコピー用ボタンを作成する"""
+        """Create the copy button with consistent styling / 一貫性のあるスタイルでコピー用ボタンを作成する"""
+
         # Copy button to copy the result to the clipboard                              / 結果をクリップボードにコピーするためのボタン
         self.copy_button = ttk.Button(      # Changed to ttk.Button for better styling / スタイリング向上のためttk.Buttonを使用
             self.button_frame,
@@ -410,8 +412,8 @@ class OCRWindow:
         )
 
     def set_theme(self) -> None:
-        """Apply the current theme to all widgets
-           現在のテーマをすべてのウィジェットに適用する"""
+        """Apply the current theme to all widgets / 現在のテーマをすべてのウィジェットに適用する"""
+
         theme = Theme.DARK if self.dark_mode.get() else Theme.LIGHT  # Select theme based on dark mode state / ダークモードの状態に基づいてテーマを選択
     
         # Configure window and frame backgrounds / ウィンドウとフレームの背景色を設定
@@ -543,13 +545,8 @@ class OCRWindow:
         )
 
     def update_mode(self, _: str) -> None:
-        """Update the display mode and title.
-        表示モードとタイトルを更新する。
-        
-        This method retrieves the current display text based on the selected 
-        processing mode, updates the result label, and ensures the dropdown menus 
-        retain their style after the mode changes.
-        """
+        """Update the display mode and title. / 表示モードとタイトルを更新する"""
+
         # Get the current mode's display text / 現在のモードの表示テキストを取得する
         current_mode_text = ProcessingMode.get_display_text(self.mode.get())
         logging.debug(f"Mode changed to: {self.mode.get()}, Display text: {current_mode_text}")
@@ -565,20 +562,11 @@ class OCRWindow:
             self.configure_dropdown_menu(self.psm_menu["menu"])
 
     def toggle_theme(self) -> None:
-        """Toggle between light and dark themes.
-        ライトテーマとダークテーマの切り替えを行う。
-        
-        This method switches the theme by calling the `set_theme` method.
-        """
+        """Toggle between light and dark themes. / ライトテーマとダークテーマの切り替えを行う"""
         self.set_theme()
 
     def setup_layout(self) -> None:
-        """Arrange widgets in the window with consistent padding.
-        ウィジェットをウィンドウ内に統一された余白で配置する。
-        
-        This method organizes all widgets within the main window, ensuring
-        consistent spacing and alignment.
-        """
+        """Arrange widgets in the window with consistent padding. / ウィジェットをウィンドウ内に統一された余白で配置する"""
         # Configure the result label with padding / 結果ラベルを余白付きで配置
         self.label_result.pack(pady=10)
 
@@ -653,8 +641,9 @@ class OCRWindow:
         """
         This method initiates the clipboard monitoring process, which checks for
         new images in the clipboard and processes them if detected.
-        クリップボード監視プロセスを開始します。画像検出された場合はOCR処理する
+        クリップボード監視プロセスを開始する。画像検出された場合はOCR処理する
         """
+
         self.update_clipboard()
 
     def update_clipboard(self) -> None:
@@ -731,10 +720,7 @@ class OCRWindow:
 
 
     def log_result(self, mode: str, content: str) -> None:
-        """Log processing results if logging is enabled. / ロギングが有効な場合、処理結果をログに記録する。
-        Parameters: mode (str): The processing mode (e.g., text, table, calculation) / 処理モード（例：テキスト、テーブル、計算）
-        content (str): The content to log / 記録する内容
-        """
+        """Log processing results if logging is enabled. / ロギングが有効な場合、処理結果をログに記録する"""
         # Check if logging is enabled in the configuration / 設定でロギングが有効かを確認
         if self.config.enable_logging:
             try:
@@ -753,8 +739,7 @@ def main():
     """
     This function initializes the Tkinter root window and starts the main event loop.
     Any exceptions during the application's execution are logged.
-    この関数は Tkinter ルートウィンドウを初期化し、メインイベントループを開始
-    アプリケーションの実行中に発生した例外はすべてログに記録する
+    Tkinter ルートウィンドウを初期化し、メインイベントループを開始。
     """
 
     try:
