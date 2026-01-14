@@ -23,7 +23,7 @@ limitations under the License.
 import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
-from PIL import Image, ImageGrab, ImageEnhance
+from PIL import Image, ImageGrab, ImageEnhance, ImageOps
 import pytesseract
 import re
 import pyperclip
@@ -77,6 +77,17 @@ class PSMMode(Enum):
     UNIFORM_TEXT = "6"  # 標準
     SINGLE_LINE = "11"  # 数値優先
 
+class PreprocessMode(Enum):
+    """Enumeration for preprocessing modes / 前処理モードの列挙"""
+
+    PHOTO = ("photo", "印刷物/写真")
+    DOT = ("dot", "ドット文字")
+    AUTO = ("auto", "コントラスト強調")
+
+    def __init__(self, value: str, display_text: str):
+        self._value_ = value
+        self.display_text = display_text
+
 @dataclass
 class OCRConfig:
     """Configuration settings for OCR processing / OCR処理の構成設定"""
@@ -112,20 +123,60 @@ class ImageProcessor:
         self.config = config
         pytesseract.pytesseract.tesseract_cmd = config.tesseract_cmd
 
-    def preprocess_image(self, image: Image.Image) -> Image.Image:
+    def preprocess_image(self, image: Image.Image, preprocess_mode: str) -> Image.Image:
         """Enhance image quality for better OCR results / OCR結果を得るために画質を向上させる"""
 
         width, height = image.size
+        if preprocess_mode == PreprocessMode.DOT.value:
+            image = image.resize((width * 3, height * 3), Image.NEAREST)
+            image = image.convert("L")
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(2.5)
+            return image.point(lambda p: 255 if p > 160 else 0)
+
+        if preprocess_mode == PreprocessMode.AUTO.value:
+            image = image.resize((width * 2, height * 2), Image.LANCZOS)
+            image = image.convert("L")
+            image = ImageOps.autocontrast(image)
+            threshold = self._calculate_otsu_threshold(image)
+            return image.point(lambda p: 255 if p > threshold else 0)
+
         image = image.resize((width * 2, height * 2), Image.LANCZOS)
         image = image.convert("L")
         enhancer = ImageEnhance.Contrast(image)
         return enhancer.enhance(2.0)
 
-    def extract_text(self, image: Image.Image, psm_mode: str) -> str:
+    def _calculate_otsu_threshold(self, image: Image.Image) -> int:
+        """Calculate Otsu threshold for binarization / 大津の二値化閾値を計算"""
+        histogram = image.histogram()
+        total = sum(histogram)
+        sum_total = sum(i * histogram[i] for i in range(256))
+        sum_background = 0
+        weight_background = 0
+        max_between = 0
+        threshold = 128
+
+        for i in range(256):
+            weight_background += histogram[i]
+            if weight_background == 0:
+                continue
+            weight_foreground = total - weight_background
+            if weight_foreground == 0:
+                break
+            sum_background += i * histogram[i]
+            mean_background = sum_background / weight_background
+            mean_foreground = (sum_total - sum_background) / weight_foreground
+            between = weight_background * weight_foreground * (mean_background - mean_foreground) ** 2
+            if between > max_between:
+                max_between = between
+                threshold = i
+        return threshold
+
+    def extract_text(self, image: Image.Image, psm_mode: str, preprocess_mode: str) -> str:
         """Extract text from image with improved encoding handling for compiled environment / 画像からのテキスト抽出"""
 
         try:
-            processed_image = self.preprocess_image(image)
+            processed_image = self.preprocess_image(image, preprocess_mode)
             custom_config = f'--psm {psm_mode}'
             
             # Force UTF-8 output from Tesseract / TesseractからのUTF-8出力を強制
@@ -286,6 +337,7 @@ class OCRWindow:
         # Variables / 変数
         self.mode = tk.StringVar(value=ProcessingMode.CALCULATION.value)  # Current processing mode / 現在の処理モード
         self.psm_mode = tk.StringVar(value=PSMMode.UNIFORM_TEXT.value)    # Current PSM mode        / 現在のPSMモード
+        self.preprocess_mode = tk.StringVar(value=f"{PreprocessMode.PHOTO.value}: {PreprocessMode.PHOTO.display_text}")
         self.dark_mode = tk.BooleanVar(value=False)                       # Dark mode toggle        / ダークモードの切り替え
 
         # Create and arrange widgets / ウィジェットを作成して配置
@@ -360,10 +412,26 @@ class OCRWindow:
         )
         self.psm_menu.config(width=12)  # Slightly wider for longer labels / 長いラベルのため少し幅広に設定
 
+        # Preprocess menu for display optimization / 表示最適化用の前処理メニュー
+        preprocess_modes = [
+            f"{PreprocessMode.PHOTO.value}: {PreprocessMode.PHOTO.display_text}",
+            f"{PreprocessMode.DOT.value}: {PreprocessMode.DOT.display_text}",
+            f"{PreprocessMode.AUTO.value}: {PreprocessMode.AUTO.display_text}"
+        ]
+        self.preprocess_menu = ttk.OptionMenu(
+            self.button_frame,
+            self.preprocess_mode,
+            preprocess_modes[0],
+            *preprocess_modes,
+            style="Mode.TMenubutton"
+        )
+        self.preprocess_menu.config(width=14)
+        
         # Configure the dropdown menus for consistent appearance / 一貫した外観のためドロップダウンメニューを設定
         self.configure_dropdown_menu(self.mode_toggle["menu"])
         self.configure_dropdown_menu(self.psm_menu["menu"])
-
+        self.configure_dropdown_menu(self.preprocess_menu["menu"])
+        
         # Checkbox for dark mode toggle / ダークモード切り替え用チェックボックス
         self.dark_mode_toggle = ttk.Checkbutton(
             self.button_frame,
@@ -486,6 +554,8 @@ class OCRWindow:
             self.configure_dropdown_menu(self.mode_toggle["menu"])
         if hasattr(self, 'psm_menu'):
             self.configure_dropdown_menu(self.psm_menu["menu"])
+        if hasattr(self, 'preprocess_menu'):
+            self.configure_dropdown_menu(self.preprocess_menu["menu"])
         
         # Update window and frame backgrounds to ensure consistency / ウィンドウとフレームの背景を一貫性を持たせるために更新
         self.root.configure(bg=theme["window_bg"])
@@ -533,7 +603,8 @@ class OCRWindow:
         # Configure the dropdown menu styles / ドロップダウンメニューのスタイルを設定
         self.configure_option_menu_style(self.mode_toggle)  # モード切り替えメニューのスタイル設定
         self.configure_option_menu_style(self.psm_menu)     # PSMメニューのスタイル設定
-
+        self.configure_option_menu_style(self.preprocess_menu)
+        
         # Additional style configurations for fixed-width menus / 固定幅メニューの追加スタイル設定
         self.style.configure(
             "TOptionMenu",
@@ -579,6 +650,7 @@ class OCRWindow:
         # Arrange buttons with consistent spacing / ボタンを一定間隔で配置
         self.mode_toggle.pack(side=tk.LEFT, padx=5)
         self.psm_menu.pack(side=tk.LEFT, padx=5)
+        self.preprocess_menu.pack(side=tk.LEFT, padx=5)
         self.dark_mode_toggle.pack(side=tk.LEFT, padx=5)
         self.copy_button.pack(side=tk.RIGHT, padx=5)
 
@@ -594,7 +666,11 @@ class OCRWindow:
                 return
             
             # Proceed with existing OCR processing                     / 既存のOCR処理を続行
-            text = self.image_processor.extract_text(image, self.psm_mode.get().split(":")[0])
+            text = self.image_processor.extract_text(
+                image,
+                self.psm_mode.get().split(":")[0],
+                self.preprocess_mode.get().split(":")[0]
+            )
         
             # Process according to mode                                / モードに応じて処理
             if self.mode.get() == ProcessingMode.CALCULATION.value:
