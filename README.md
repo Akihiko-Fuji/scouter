@@ -63,10 +63,13 @@ Demonstration combined with snipping tool, a standard Windows screen capture.
 3. OCR Processing<BR>
   You can select the OCR reading processing method. This utilizes Tesseract's PSM function for switching the reading method. If the values cannot be read properly, try changing this processing.
 
-4. Dark mode switching<BR>
+4. Image preprocessing<BR>
+  You can choose between a standard photo/print preset, a dot-matrix preset optimized for pixelated monitor fonts, and a contrast-boost preset that auto-binarizes text.
+
+5. Dark mode switching<BR>
   You can change to the dark mode, which is less noticeable even if the Window is left open.
 
-5. Copying the result<BR>
+6. Copying the result<BR>
   This function copies the read result to the clipboard. Text extraction mode and tabular mode 1. copy the reading results as they are.
   In the calculation formula and total value mode, the calculation formula is not copied, but “only the total value of the calculation result” is copied.
 
