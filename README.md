@@ -26,6 +26,35 @@ Select additional language data:
 
  The default installation location (C:\Program Files\Tesseract-OCR\tesseract.exe) is recommended, but the reference location can be changed in the configuration file.
 
+# Installation (Tesseract + EasyOCR)
+## 1) Install Tesseract OCR
+- Download and install Tesseract for Windows from:
+  https://github.com/UB-Mannheim/tesseract/wiki
+- During setup, include Japanese language/script data as described above.
+- Recommended default path:
+  `C:\Program Files\Tesseract-OCR\tesseract.exe`
+
+## 2) Install Python packages (EasyOCR)
+Create/activate your Python environment, then install dependencies:
+
+```bash
+pip install easyocr pillow pyperclip opencv-python numpy
+```
+
+If you use GPU-enabled PyTorch, install torch/torchvision first according to your CUDA version, then install EasyOCR.
+
+## 3) Configure `config.ini`
+Set the Tesseract path and OCR engine:
+
+```ini
+tesseract_cmd = C:\Program Files\Tesseract-OCR\tesseract.exe
+engine = easyocr
+language = jpn
+```
+
+`engine = easyocr` uses EasyOCR as the primary OCR engine.
+`tesseract_cmd` is used when Tesseract fallback is needed.
+
 # Files required for the program to work<BR>
 Scouter.exe <BR>
 config.ini<BR>
