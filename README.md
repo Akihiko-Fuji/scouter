@@ -40,8 +40,8 @@ Specify the location where Tesseract is saved for operation. If you did not chan
 engine = easyocr<BR>
 Select OCR engine. `easyocr` is recommended for Japanese screenshots and `tesseract` is available for compatibility.<BR>
 
-language = jpn+eng<BR>
-Specify the language used for OCR processing. The standard language is Japanese+English (jpn+eng).
+language = jpn<BR>
+Specify the language used for OCR processing. The default fallback language is Japanese (jpn).
 For English documents, set this to eng. For documents that contain both English and Japanese, you can specify jpn+eng, etc.
 
 enable_logging = False<BR>
@@ -67,7 +67,7 @@ Demonstration combined with snipping tool, a standard Windows screen capture.
   You can select the OCR reading processing method. This utilizes Tesseract's PSM function for switching the reading method (default is PSM 3), and OCR now explicitly uses OEM 1 (LSTM). If the values cannot be read properly, try changing this processing.
 
 4. Image preprocessing<BR>
-  Screenshot oriented presets apply 4x scaling and Otsu binarization across all modes, with different enhancement paths for default, low-contrast, dot-font, and legacy compatibility.
+  Screenshot oriented presets are optimized per mode: screen_default and low_contrast keep non-binarized image information, dot_font applies targeted Otsu binarization, and legacy compatibility mode keeps the old Tesseract-style binarization path. For small/low-DPI screenshots, preprocessing now adaptively increases scaling and EasyOCR can retry once with an alternate preset when confidence is low.
 
 5. Dark mode switching<BR>
   You can change to the dark mode, which is less noticeable even if the Window is left open.
