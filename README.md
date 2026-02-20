@@ -73,6 +73,10 @@ Demonstration combined with snipping tool, a standard Windows screen capture.
   This function copies the read result to the clipboard. Text extraction mode and tabular mode 1. copy the reading results as they are.
   In the calculation formula and total value mode, the calculation formula is not copied, but “only the total value of the calculation result” is copied.
 
+# OCR improvement plan (Japanese)
+Detailed improvement roadmap for Japanese screenshot OCR is documented in `OCR_IMPROVEMENT_PLAN_JA.md`.
+
+
 # Download URL:<BR>
 https://github.com/Akihiko-Fuji/scouter/raw/refs/heads/main/scouter.zip
 
