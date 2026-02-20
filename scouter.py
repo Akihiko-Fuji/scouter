@@ -521,15 +521,15 @@ class Theme:
     DARK = {
         "window_bg": "#2E2E2E",  # Background color of the app window                 / アプリのウィンドウ背景色
         "window_fg": "#FFFFFF",  # Foreground color of the app window                 / アプリのウィンドウ前景色（主にラベルのテキスト）
-        "text_bg": "#1E1E1E",  # Background color of text area                      / テキストエリアの背景色（結果表示用）
-        "text_fg": "#FFFFFF",  # Text color of text area                            / テキストエリアの文字色
+        "text_bg": "#1E1E1E",    # Background color of text area                      / テキストエリアの背景色（結果表示用）
+        "text_fg": "#FFFFFF",    # Text color of text area                            / テキストエリアの文字色
         "button_bg": "#3E3E3E",  # Background color of buttons                        / ボタンの背景色
         "button_fg": "#FFFFFF",  # Text color of buttons                              / ボタンの文字色
-        "frame_bg": "#2E2E2E",  # Background color of button frames and other frames / ボタンフレームやその他のフレーム背景色
+        "frame_bg": "#2E2E2E",   # Background color of button frames and other frames / ボタンフレームやその他のフレーム背景色
         "option_bg": "#2E2E2E",  # Background color of option menus                   / オプションメニュー（ドロップダウン）の背景色
         "option_fg": "#FFFFFF",  # Text color of option menus                         / オプションメニューの文字色
-        "menu_bg": "#2E2E2E",  # Background color of dropdown lists                 / ドロップダウンリストの背景色
-        "menu_fg": "#FFFFFF",  # Text color of dropdown lists                       / ドロップダウンリストの文字色
+        "menu_bg": "#2E2E2E",    # Background color of dropdown lists                 / ドロップダウンリストの背景色
+        "menu_fg": "#FFFFFF",    # Text color of dropdown lists                       / ドロップダウンリストの文字色
         "active_bg": "#4E4E4E",  # Background color when hovering buttons or menus    / ボタンやメニューのホバー時の背景色
         "active_fg": "#FFFFFF",  # Text color when hovering buttons or menus          / ボタンやメニューのホバー時の文字色
     }
@@ -633,7 +633,7 @@ class OCRWindow:
                 "Arial",
                 12,
                 "bold",
-            ),  # Font settings for better readability    / 見やすさのためのフォント設定
+            ),  # Font settings for better readability                            / 見やすさのためのフォント設定
         )
 
         # ScrolledText widget for displaying results                              / 結果を表示するためのScrolledTextウィジェット
@@ -642,9 +642,9 @@ class OCRWindow:
             font=(
                 "Courier New",
                 16,
-            ),  # Monospaced font for consistent alignment / 一定の整列を保つモノスペースフォント
+            ),  # Monospaced font for consistent alignment                        / 一定の整列を保つモノスペースフォント
             height=10,
-            wrap=tk.WORD,  # Word wrap for better readability         / 読みやすさのための単語単位での折り返し
+            wrap=tk.WORD,  # Word wrap for better readability                     / 読みやすさのための単語単位での折り返し
         )
 
         # Frame to hold buttons and controls                                      / ボタンやコントロールを保持するフレーム
@@ -657,27 +657,27 @@ class OCRWindow:
     def create_mode_controls(self) -> None:
         """Create mode, PSM, preprocess selectors and dark-mode toggle controls."""
 
-        # Create a custom style for the option menus / オプションメニュー専用のカスタムスタイルを作成
+        # Create a custom style for the option menus                              / オプションメニュー専用のカスタムスタイルを作成
         self.style.configure(
             "Mode.TMenubutton",
-            background="#2E2E2E",  # Background color for the menu button / メニューボタンの背景色
-            foreground="#FFFFFF",  # Text color for the menu button       / メニューボタンの文字色
-            relief="flat",  # Flat appearance                      / フラットな見た目
+            background="#2E2E2E",  # Background color for the menu button         / メニューボタンの背景色
+            foreground="#FFFFFF",  # Text color for the menu button               / メニューボタンの文字色
+            relief="flat",  # Flat appearance                                     / フラットな見た目
             padding=(
                 5,
                 2,
-            ),  # Padding for a better click area      / クリックエリアを確保するパディング
+            ),  # Padding for a better click area                                 / クリックエリアを確保するパディング
         )
 
-        # Mode toggle button with predefined options / 定義済みオプションを持つモード切り替えボタン
+        # Mode toggle button with predefined options                              / 定義済みオプションを持つモード切り替えボタン
         self.mode_toggle = ttk.OptionMenu(
             self.button_frame,
             self.mode,
             ProcessingMode.CALCULATION.value,  # Set default value directly
             *[
                 mode.value for mode in ProcessingMode
-            ],  # Options from ProcessingMode Enum   / ProcessingMode Enumからのオプション
-            command=self.update_mode,  # Update mode when selection changes / 選択変更時にモードを更新
+            ],  # Options from ProcessingMode Enum                                / ProcessingMode Enumからのオプション
+            command=self.update_mode,  # Update mode when selection changes       / 選択変更時にモードを更新
         )
         self.mode_toggle.config(
             width=10
@@ -685,8 +685,8 @@ class OCRWindow:
 
         # PSM menu for OCR mode selection / OCRモード選択用PSMメニュー
         psm_modes = [
-            "3: 文字優先　",  # Prioritize sparse text / 疎な文字を優先
-            "6: 標準　　　",  # Standard mode          / 標準モード
+            "3: 文字優先　",   # Prioritize sparse text / 疎な文字を優先
+            "6: 標準　　　",   # Standard mode          / 標準モード
             "11: 数値優先　",  # Prioritize numbers     / 数値を優先
         ]
         self.psm_menu = ttk.OptionMenu(
@@ -811,11 +811,11 @@ class OCRWindow:
         # Configure ttk styles for widgets / ウィジェット用のttkスタイルを構成
         self.style.configure(
             "TButton",  # General button style   / 一般的なボタンスタイル
-            background=theme["button_bg"],  # Button background      / ボタンの背景色
-            foreground=theme["button_fg"],  # Button text color      / ボタンの文字色
+            background=theme["button_bg"],   # Button background      / ボタンの背景色
+            foreground=theme["button_fg"],   # Button text color      / ボタンの文字色
             bordercolor=theme["button_bg"],  # Border color           / 境界線の色
-            lightcolor=theme["button_bg"],  # Light edge color       / 明るいエッジ色
-            darkcolor=theme["button_bg"],  # Dark edge color        / 暗いエッジ色
+            lightcolor=theme["button_bg"],   # Light edge color       / 明るいエッジ色
+            darkcolor=theme["button_bg"],    # Dark edge color        / 暗いエッジ色
             relief="flat",  # Flat style for buttons / フラットなスタイル
         )
 
