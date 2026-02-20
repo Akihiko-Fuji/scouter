@@ -23,7 +23,7 @@ limitations under the License.
 import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
-from PIL import Image, ImageGrab, ImageEnhance, ImageOps
+from PIL import Image, ImageGrab, ImageEnhance, ImageOps, ImageFilter
 import pytesseract
 import re
 import pyperclip
@@ -32,11 +32,13 @@ from datetime import datetime
 import traceback
 import os
 from dataclasses import dataclass
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict, Any
 from enum import Enum
 import logging
 import sys
 import locale
+import importlib.util
+import importlib
 import win32clipboard
 
 # Configure logging / ログの設定
@@ -80,13 +82,33 @@ class PSMMode(Enum):
 class PreprocessMode(Enum):
     """Enumeration for preprocessing modes / 前処理モードの列挙"""
 
-    PHOTO = ("photo", "印刷物/写真")
-    DOT = ("dot", "ドット文字")
-    AUTO = ("auto", "コントラスト強調")
+    SCREEN_DEFAULT = ("screen_default", "スクリーン標準(非二値化)")
+    SCREEN_LOW_CONTRAST = ("screen_low_contrast", "低コントラスト(非二値化)")
+    SCREEN_DOT_FONT = ("screen_dot_font", "ドット文字(二値化)")
+    LEGACY_TESSERACT_BIN = ("legacy_tesseract_bin", "旧Tesseract互換(二値化)")
 
     def __init__(self, value: str, display_text: str):
         self._value_ = value
         self.display_text = display_text
+
+class OCREngineType(Enum):
+    """Enumeration for OCR engines / OCRエンジンの列挙"""
+
+    EASYOCR = ("easyocr", "EasyOCR (ja+en)")
+    TESSERACT = ("tesseract", "Tesseract")
+
+    def __init__(self, value: str, display_text: str):
+        self._value_ = value
+        self.display_text = display_text
+
+@dataclass
+class OCRResult:
+    """Container for OCR result / OCR結果コンテナ"""
+
+    text: str
+    confidence: float
+    engine: str
+    meta: Dict[str, Any]
 
 @dataclass
 class OCRConfig:
@@ -94,6 +116,7 @@ class OCRConfig:
 
     tesseract_cmd: str
     language: str
+    engine: str
     enable_logging: bool
 
     @classmethod
@@ -107,44 +130,142 @@ class OCRConfig:
             config.read(config_path)
             return cls(
                 tesseract_cmd=config.get("OCR", "tesseract_cmd", fallback=default_tesseract),
-                language=config.get("OCR", "language", fallback="eng"),
+                language=config.get("OCR", "language", fallback="jpn+eng"),
+                engine=config.get("OCR", "engine", fallback=OCREngineType.EASYOCR.value),
                 enable_logging=config.getboolean("OCR", "enable_logging", fallback=True)
             )
+        logging.info("config.ini not found. Using defaults: language=jpn+eng, engine=easyocr")
         return cls(
             tesseract_cmd=default_tesseract,
-            language="eng",
+            language="jpn+eng",
+            engine=OCREngineType.EASYOCR.value,
             enable_logging=True
         )
 
-class ImageProcessor:
-    """Handles all image processing and OCR operations / すべての画像処理とOCR操作を行う"""
+class OCREngine:
+    """Base OCR engine interface / OCRエンジン基底インターフェース"""
+
+    def recognize(self, image: Image.Image, mode: str, psm_mode: str) -> OCRResult:
+        raise NotImplementedError
+
+
+class TesseractEngine(OCREngine):
+    """Tesseract OCR engine implementation / Tesseract実装"""
 
     def __init__(self, config: OCRConfig):
         self.config = config
         pytesseract.pytesseract.tesseract_cmd = config.tesseract_cmd
 
+    def recognize(self, image: Image.Image, mode: str, psm_mode: str) -> OCRResult:
+        custom_config = f'--psm {psm_mode} --oem 1'
+        if hasattr(sys, 'frozen'):
+            custom_config += ' --encoding UTF8'
+
+        raw_text = pytesseract.image_to_string(
+            image,
+            lang=self.config.language,
+            config=custom_config
+        )
+
+        if hasattr(sys, 'frozen'):
+            try:
+                raw_text = raw_text.encode('utf-8', errors='ignore').decode('utf-8')
+            except UnicodeError:
+                system_encoding = locale.getpreferredencoding()
+                raw_text = raw_text.encode(system_encoding, errors='ignore').decode('utf-8')
+
+        return OCRResult(
+            text=raw_text,
+            confidence=0.0,
+            engine=OCREngineType.TESSERACT.value,
+            meta={"psm": psm_mode, "language": self.config.language, "mode": mode}
+        )
+
+
+class EasyOCREngine(OCREngine):
+    """EasyOCR implementation / EasyOCR実装"""
+
+    def __init__(self):
+        self.reader = None
+        self.available = False
+        self._init_reader()
+
+    def _init_reader(self) -> None:
+        if importlib.util.find_spec("easyocr") is None:
+            logging.warning("EasyOCR is not installed. Fallback to Tesseract will be used.")
+            return
+
+        try:
+            easyocr = importlib.import_module("easyocr")
+            self.reader = easyocr.Reader(['ja', 'en'], gpu=False)
+            self.available = True
+        except Exception as e:
+            logging.error(f"EasyOCR initialization failed: {str(e)}")
+            self.available = False
+
+    def recognize(self, image: Image.Image, mode: str, psm_mode: str) -> OCRResult:
+        if not self.available or self.reader is None:
+            raise RuntimeError("EasyOCR reader is unavailable")
+
+        image_rgb = image.convert("RGB")
+        results = self.reader.readtext(image_rgb)
+        text_lines = [entry[1] for entry in results if len(entry) > 1]
+        confidences = [entry[2] for entry in results if len(entry) > 2 and isinstance(entry[2], (float, int))]
+        avg_conf = float(sum(confidences) / len(confidences)) if confidences else 0.0
+
+        return OCRResult(
+            text="\n".join(text_lines),
+            confidence=avg_conf,
+            engine=OCREngineType.EASYOCR.value,
+            meta={"detections": len(results), "mode": mode, "psm": psm_mode}
+        )
+
+
+class ImageProcessor:
+    """Handles image preprocessing and OCR orchestration / 画像前処理とOCR実行の統合"""
+
+    def __init__(self, config: OCRConfig):
+        self.config = config
+        self.tesseract_engine = TesseractEngine(config)
+        self.easyocr_engine = EasyOCREngine()
+
     def preprocess_image(self, image: Image.Image, preprocess_mode: str) -> Image.Image:
-        """Enhance image quality for better OCR results / OCR結果を得るために画質を向上させる"""
+        """Enhance image quality for screenshot OCR / スクリーンショット向け前処理"""
 
         width, height = image.size
-        if preprocess_mode == PreprocessMode.DOT.value:
-            image = image.resize((width * 3, height * 3), Image.NEAREST)
-            image = image.convert("L")
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(2.5)
-            return image.point(lambda p: 255 if p > 160 else 0)
 
-        if preprocess_mode == PreprocessMode.AUTO.value:
-            image = image.resize((width * 2, height * 2), Image.LANCZOS)
-            image = image.convert("L")
-            image = ImageOps.autocontrast(image)
-            threshold = self._calculate_otsu_threshold(image)
-            return image.point(lambda p: 255 if p > threshold else 0)
+        if preprocess_mode == PreprocessMode.SCREEN_DOT_FONT.value:
+            image = image.resize((width * 4, height * 4), Image.NEAREST)
+            gray = image.convert("L")
+            sharpened = ImageEnhance.Sharpness(gray).enhance(2.0)
+            contrasted = ImageEnhance.Contrast(sharpened).enhance(2.8)
+            threshold = self._calculate_otsu_threshold(contrasted)
+            return contrasted.point(lambda p: 255 if p > threshold else 0)
 
-        image = image.resize((width * 2, height * 2), Image.LANCZOS)
-        image = image.convert("L")
-        enhancer = ImageEnhance.Contrast(image)
-        return enhancer.enhance(2.0)
+        if preprocess_mode == PreprocessMode.SCREEN_LOW_CONTRAST.value:
+            image = image.resize((width * 4, height * 4), Image.LANCZOS)
+            gray = image.convert("L")
+            clahe_like = ImageOps.autocontrast(gray, cutoff=2)
+            denoised = clahe_like.filter(ImageFilter.MedianFilter(size=3))
+            sharpened = ImageEnhance.Sharpness(denoised).enhance(2.0)
+            contrasted = ImageEnhance.Contrast(sharpened).enhance(2.5)
+            threshold = self._calculate_otsu_threshold(contrasted)
+            return contrasted.point(lambda p: 255 if p > threshold else 0)
+
+        if preprocess_mode == PreprocessMode.LEGACY_TESSERACT_BIN.value:
+            image = image.resize((width * 4, height * 4), Image.LANCZOS)
+            gray = image.convert("L")
+            sharpened = ImageEnhance.Sharpness(gray).enhance(2.0)
+            contrasted = ImageEnhance.Contrast(sharpened).enhance(2.5)
+            threshold = self._calculate_otsu_threshold(contrasted)
+            return contrasted.point(lambda p: 255 if p > threshold else 0)
+
+        image = image.resize((width * 4, height * 4), Image.LANCZOS)
+        gray = image.convert("L")
+        sharpened = ImageEnhance.Sharpness(gray).enhance(2.0)
+        contrasted = ImageEnhance.Contrast(sharpened).enhance(2.5)
+        threshold = self._calculate_otsu_threshold(contrasted)
+        return contrasted.point(lambda p: 255 if p > threshold else 0)
 
     def _calculate_otsu_threshold(self, image: Image.Image) -> int:
         """Calculate Otsu threshold for binarization / 大津の二値化閾値を計算"""
@@ -172,59 +293,44 @@ class ImageProcessor:
                 threshold = i
         return threshold
 
-    def extract_text(self, image: Image.Image, psm_mode: str, preprocess_mode: str) -> str:
-        """Extract text from image with improved encoding handling for compiled environment / 画像からのテキスト抽出"""
+    def _clean_japanese_text(self, text: str) -> str:
+        text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)
+        valid_chars = (
+            r'[　-〿]'
+            r'|[぀-ゟ]'
+            r'|[゠-ヿ]'
+            r'|[一-鿿]'
+            r'|[＀-￯]'
+            r'|[ -~]'
+        )
+        return ''.join(char for char in text if re.match(valid_chars, char))
+
+    def _select_engine(self) -> OCREngineType:
+        try:
+            return OCREngineType(self.config.engine)
+        except ValueError:
+            return OCREngineType.EASYOCR
+
+    def extract_text(self, image: Image.Image, mode: str, psm_mode: str, preprocess_mode: str) -> OCRResult:
+        """Extract text with EasyOCR-first strategy and Tesseract fallback / EasyOCR優先+Tesseractフォールバック"""
+
+        processed_image = self.preprocess_image(image, preprocess_mode)
+        requested_engine = self._select_engine()
 
         try:
-            processed_image = self.preprocess_image(image, preprocess_mode)
-            custom_config = f'--psm {psm_mode}'
-            
-            # Force UTF-8 output from Tesseract / TesseractからのUTF-8出力を強制
-            if hasattr(sys, 'frozen'):
-                custom_config += ' --encoding UTF8'
-            
-            raw_text = pytesseract.image_to_string(
-                processed_image,
-                lang=self.config.language,
-                config=custom_config
-            )
-
-            # Handle encoding in compiled environment / コンパイルされた環境でのエンコード処理
-            if hasattr(sys, 'frozen'):
-                try:
-                    # First try UTF-8
-                    raw_text = raw_text.encode('utf-8', errors='ignore').decode('utf-8')
-                except UnicodeError:
-                    # Fallback to system locale
-                    system_encoding = locale.getpreferredencoding()
-                    raw_text = raw_text.encode(system_encoding, errors='ignore').decode('utf-8')
-
-            # Clean up text / テキストをクリーンアップ
-            cleaned_text = self._clean_japanese_text(raw_text)
-            return cleaned_text
-
+            if requested_engine == OCREngineType.TESSERACT:
+                result = self.tesseract_engine.recognize(processed_image, mode, psm_mode)
+            else:
+                result = self.easyocr_engine.recognize(processed_image, mode, psm_mode)
+                if not result.text.strip():
+                    raise RuntimeError("EasyOCR returned empty text")
         except Exception as e:
-            logging.error(f"OCR extraction error: {str(e)}")
-            return ""
+            logging.warning(f"Primary OCR engine failed ({requested_engine.value}): {str(e)}")
+            result = self.tesseract_engine.recognize(processed_image, mode, psm_mode)
+            result.meta["fallback"] = True
 
-    def _clean_japanese_text(self, text: str) -> str:
-        """Clean Japanese text with improved character handling / 日本語テキストをクリーンアップ"""
-
-        # Remove control characters / 制御文字を削除
-        text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)
-        
-        # Keep only valid Japanese characters and basic punctuation / 有効な日本語文字と基本的な句読点のみを保持
-        valid_chars = (
-            r'[\u3000-\u303F]'   # Japanese punctuation  / 句読点
-            r'|[\u3040-\u309F]'  # Hiragana              / ひらがな
-            r'|[\u30A0-\u30FF]'  # Katakana              / カタカナ
-            r'|[\u4E00-\u9FFF]'  # Kanji                 / 漢字
-            r'|[\uFF00-\uFFEF]'  # Full-width characters / 全角文字
-            r'|[\u0020-\u007E]'  # Basic Latin           / 英数
-        )
-        
-        text = ''.join(char for char in text if re.match(valid_chars, char))
-        return text
+        result.text = self._clean_japanese_text(result.text)
+        return result
 
 class TextProcessor:
     """Handles text processing operations / テキスト処理操作を扱う"""
@@ -233,8 +339,9 @@ class TextProcessor:
     def extract_numbers_and_calculate(text: str) -> Tuple[Optional[str], Optional[int]]:
         """Extract numbers from text and calculate sum / テキストから数値を抽出し、合計を計算する"""
 
+        normalized = TextProcessor.normalize_numeric_text(text)
         # Extract all numbers from the text using a regular expression  / 正規表現を使用してテキストからすべての数値を抽出
-        numbers = re.findall(r'\d+', text)
+        numbers = re.findall(r'\d+', normalized)
         if not numbers:
             return None, None  # Return None if no numbers are found    / 数値が見つからない場合はNoneを返す
         
@@ -281,6 +388,23 @@ class TextProcessor:
             logging.error(f"Table extraction error: {str(e)}")
             return text
 
+
+    @staticmethod
+    def normalize_numeric_text(text: str) -> str:
+        """Normalize common OCR mistakes for numeric/table mode / 数値系OCRの誤認識を正規化"""
+
+        replacements = {
+            "O": "0", "o": "0", "〇": "0",
+            "l": "1", "I": "1", "|": "1",
+            "ー": "-", "―": "-", "−": "-",
+            "，": ",", "．": ".", " ": ""
+        }
+
+        normalized = text
+        for src, dst in replacements.items():
+            normalized = normalized.replace(src, dst)
+        return normalized
+
 class Theme:
     """Manages application theming / アプリケーションのテーマ設定"""
 
@@ -323,8 +447,28 @@ class OCRWindow:
         self.config = OCRConfig.from_config_file()
         self.image_processor = ImageProcessor(self.config)
         self.text_processor = TextProcessor()
+        self._log_effective_settings()
         self.setup_window(root)
         self.previous_image = None
+
+
+    def _log_effective_settings(self) -> None:
+        """Log effective OCR settings and validate Japanese language data / 実効設定をログ出力し日本語データを検証"""
+
+        logging.info(
+            "Effective OCR settings: engine=%s, language=%s, preprocess_default=%s",
+            self.config.engine,
+            self.config.language,
+            PreprocessMode.SCREEN_DEFAULT.value
+        )
+
+        if "jpn" in self.config.language:
+            try:
+                langs = pytesseract.get_languages(config='')
+                if 'jpn' not in langs:
+                    logging.warning("Tesseract Japanese language pack (jpn) is missing.")
+            except Exception as e:
+                logging.warning(f"Could not validate Tesseract languages: {str(e)}")
 
     def setup_window(self, root: tk.Tk) -> None:
         """Initialize the main window and its components / メイン・ウィンドウを初期化する"""
@@ -336,8 +480,8 @@ class OCRWindow:
 
         # Variables / 変数
         self.mode = tk.StringVar(value=ProcessingMode.CALCULATION.value)  # Current processing mode / 現在の処理モード
-        self.psm_mode = tk.StringVar(value=PSMMode.UNIFORM_TEXT.value)    # Current PSM mode        / 現在のPSMモード
-        self.preprocess_mode = tk.StringVar(value=f"{PreprocessMode.PHOTO.value}: {PreprocessMode.PHOTO.display_text}")
+        self.psm_mode = tk.StringVar(value=PSMMode.SPARSE_TEXT.value)    # Current PSM mode        / 現在のPSMモード
+        self.preprocess_mode = tk.StringVar(value=f"{PreprocessMode.SCREEN_DEFAULT.value}: {PreprocessMode.SCREEN_DEFAULT.display_text}")
         self.dark_mode = tk.BooleanVar(value=False)                       # Dark mode toggle        / ダークモードの切り替え
 
         # Create and arrange widgets / ウィジェットを作成して配置
@@ -406,7 +550,7 @@ class OCRWindow:
         self.psm_menu = ttk.OptionMenu(
             self.button_frame,
             self.psm_mode,
-            psm_modes[1],               # Default PSM mode / デフォルトのPSMモード
+            psm_modes[0],               # Default PSM mode / デフォルトのPSMモード
             *psm_modes,
             style="Mode.TMenubutton"    # Use custom style / カスタムスタイルを使用
         )
@@ -414,9 +558,10 @@ class OCRWindow:
 
         # Preprocess menu for display optimization / 表示最適化用の前処理メニュー
         preprocess_modes = [
-            f"{PreprocessMode.PHOTO.value}: {PreprocessMode.PHOTO.display_text}",
-            f"{PreprocessMode.DOT.value}: {PreprocessMode.DOT.display_text}",
-            f"{PreprocessMode.AUTO.value}: {PreprocessMode.AUTO.display_text}"
+            f"{PreprocessMode.SCREEN_DEFAULT.value}: {PreprocessMode.SCREEN_DEFAULT.display_text}",
+            f"{PreprocessMode.SCREEN_LOW_CONTRAST.value}: {PreprocessMode.SCREEN_LOW_CONTRAST.display_text}",
+            f"{PreprocessMode.SCREEN_DOT_FONT.value}: {PreprocessMode.SCREEN_DOT_FONT.display_text}",
+            f"{PreprocessMode.LEGACY_TESSERACT_BIN.value}: {PreprocessMode.LEGACY_TESSERACT_BIN.display_text}"
         ]
         self.preprocess_menu = ttk.OptionMenu(
             self.button_frame,
@@ -666,30 +811,33 @@ class OCRWindow:
                 return
             
             # Proceed with existing OCR processing                     / 既存のOCR処理を続行
-            text = self.image_processor.extract_text(
+            ocr_result = self.image_processor.extract_text(
                 image,
+                self.mode.get(),
                 self.psm_mode.get().split(":")[0],
                 self.preprocess_mode.get().split(":")[0]
             )
-        
+            text = ocr_result.text
+
             # Process according to mode                                / モードに応じて処理
             if self.mode.get() == ProcessingMode.CALCULATION.value:
                 formula, total = self.text_processor.extract_numbers_and_calculate(text)
                 if formula and total is not None:
                     content = f"{formula} = {total}"
                     self.update_display(content)
-                    self.log_result("calculation", content)
+                    self.log_result("calculation", f"[{ocr_result.engine}] {content}")
                 else:
                     self.update_display("数字が見つかりません")
                 
             elif self.mode.get() == ProcessingMode.TABLE.value:
-                table_content = self.text_processor.extract_table(text)
+                normalized_table = self.text_processor.normalize_numeric_text(text)
+                table_content = self.text_processor.extract_table(normalized_table)
                 self.update_display(table_content)
-                self.log_result("table", table_content)
+                self.log_result("table", f"[{ocr_result.engine}] {table_content}")
             
             else:  # Text mode
                 self.update_display(text.strip())
-                self.log_result("text", text.strip())
+                self.log_result("text", f"[{ocr_result.engine}] {text.strip()}")
             
         except Exception as e:
             logging.error(f"Image processing error: {str(e)}")

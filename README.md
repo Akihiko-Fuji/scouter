@@ -3,7 +3,7 @@
 Clipboard Scouter is an OCR (Optical Character Recognition) processing tool designed to extract and analyze text and numbers from images copied to the clipboard.
 It offers various processing modes including text extraction, calculation-based operations, and table conversion.
 Users can interact with the tool through a GUI developed using Python's Tkinter library, where they can select the processing mode, view results.
-The application utilizes the Tesseract OCR engine for text recognition, with customization options for OCR modes and language settings.
+The application uses EasyOCR (ja+en) as the default engine and falls back to Tesseract when needed, with customization options for OCR modes and language settings.
 It also features logging capabilities to track errors and operations, and supports configuration through an INI file.
 The tool is particularly useful for processing text and numbers from screenshots or clipboard images, performing automatic calculations, and formatting output into tables.
 
@@ -33,12 +33,15 @@ config.ini<BR>
 No folder is specified. There is no installer. No registry entries. Place the above files in a single folder.
 
 # Description of config.ini
-The following three settings can be made in the configuration file. Normally, no changes are required.<BR>
+The following settings can be made in the configuration file. Normally, no changes are required.<BR>
 tesseract_cmd = C:\Program Files\Tesseract-OCR\tesseract.exe<BR>
 Specify the location where Tesseract is saved for operation. If you did not change the location during installation, you do not need to change this value.<BR>
 
-language = jpn<BR>
-Specify the language used for OCR processing. The standard language is Japanese (jpn).
+engine = easyocr<BR>
+Select OCR engine. `easyocr` is recommended for Japanese screenshots and `tesseract` is available for compatibility.<BR>
+
+language = jpn+eng<BR>
+Specify the language used for OCR processing. The standard language is Japanese+English (jpn+eng).
 For English documents, set this to eng. For documents that contain both English and Japanese, you can specify jpn+eng, etc.
 
 enable_logging = False<BR>
@@ -61,10 +64,10 @@ Demonstration combined with snipping tool, a standard Windows screen capture.
   You can select the data processing mode. See 1. for mode and processing.
 
 3. OCR Processing<BR>
-  You can select the OCR reading processing method. This utilizes Tesseract's PSM function for switching the reading method. If the values cannot be read properly, try changing this processing.
+  You can select the OCR reading processing method. This utilizes Tesseract's PSM function for switching the reading method (default is PSM 3), and OCR now explicitly uses OEM 1 (LSTM). If the values cannot be read properly, try changing this processing.
 
 4. Image preprocessing<BR>
-  You can choose between a standard photo/print preset, a dot-matrix preset optimized for pixelated monitor fonts, and a contrast-boost preset that auto-binarizes text.
+  Screenshot oriented presets apply 4x scaling and Otsu binarization across all modes, with different enhancement paths for default, low-contrast, dot-font, and legacy compatibility.
 
 5. Dark mode switching<BR>
   You can change to the dark mode, which is less noticeable even if the Window is left open.
