@@ -3,9 +3,9 @@
 """
 Clipboard Scouter: A tool for OCR processing of clipboard images
 Author: Akihiko Fujita
-Version: 1.3
+Version: 1.4
 
-Copyright 2025 Akihiko Fujita
+Copyright 2025-2026 Akihiko Fujita
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
