@@ -130,14 +130,14 @@ class OCRConfig:
             config.read(config_path)
             return cls(
                 tesseract_cmd=config.get("OCR", "tesseract_cmd", fallback=default_tesseract),
-                language=config.get("OCR", "language", fallback="jpn+eng"),
+                language=config.get("OCR", "language", fallback="jpn"),
                 engine=config.get("OCR", "engine", fallback=OCREngineType.EASYOCR.value),
                 enable_logging=config.getboolean("OCR", "enable_logging", fallback=True)
             )
-        logging.info("config.ini not found. Using defaults: language=jpn+eng, engine=easyocr")
+        logging.info("config.ini not found. Using defaults: language=jpn, engine=easyocr")
         return cls(
             tesseract_cmd=default_tesseract,
-            language="jpn+eng",
+            language="jpn",
             engine=OCREngineType.EASYOCR.value,
             enable_logging=True
         )
@@ -229,13 +229,38 @@ class ImageProcessor:
         self.tesseract_engine = TesseractEngine(config)
         self.easyocr_engine = EasyOCREngine()
 
+    def _determine_scale_factor(self, image: Image.Image, preprocess_mode: str) -> int:
+        """Select scale factor with 72/96dpi screenshots in mind / 72/96dpiスクショを考慮した拡大率選択"""
+
+        width, height = image.size
+        min_side = min(width, height)
+        dpi = image.info.get("dpi", (72, 72))
+        dpi_x = dpi[0] if isinstance(dpi, tuple) and dpi else 72
+
+        if preprocess_mode == PreprocessMode.SCREEN_DOT_FONT.value:
+            return 3
+        if preprocess_mode == PreprocessMode.LEGACY_TESSERACT_BIN.value:
+            return 4
+
+        # Low DPI/small UI screenshots often need stronger upscaling for thin Japanese glyph strokes.
+        if dpi_x <= 96 or min_side <= 900:
+            return 3
+        return 2
+
     def preprocess_image(self, image: Image.Image, preprocess_mode: str) -> Image.Image:
         """Enhance image quality for screenshot OCR / スクリーンショット向け前処理"""
 
         width, height = image.size
+        scale = self._determine_scale_factor(image, preprocess_mode)
+
+        if preprocess_mode == PreprocessMode.SCREEN_DEFAULT.value:
+            image = image.resize((width * scale, height * scale), Image.LANCZOS)
+            image = image.filter(ImageFilter.UnsharpMask(radius=1.2, percent=130, threshold=2))
+            image = ImageOps.autocontrast(image, cutoff=1)
+            return ImageEnhance.Contrast(image).enhance(1.1)
 
         if preprocess_mode == PreprocessMode.SCREEN_DOT_FONT.value:
-            image = image.resize((width * 4, height * 4), Image.NEAREST)
+            image = image.resize((width * scale, height * scale), Image.NEAREST)
             gray = image.convert("L")
             sharpened = ImageEnhance.Sharpness(gray).enhance(2.0)
             contrasted = ImageEnhance.Contrast(sharpened).enhance(2.8)
@@ -243,29 +268,25 @@ class ImageProcessor:
             return contrasted.point(lambda p: 255 if p > threshold else 0)
 
         if preprocess_mode == PreprocessMode.SCREEN_LOW_CONTRAST.value:
-            image = image.resize((width * 4, height * 4), Image.LANCZOS)
+            image = image.resize((width * scale, height * scale), Image.LANCZOS)
             gray = image.convert("L")
-            clahe_like = ImageOps.autocontrast(gray, cutoff=2)
+            clahe_like = ImageOps.autocontrast(gray, cutoff=3)
             denoised = clahe_like.filter(ImageFilter.MedianFilter(size=3))
-            sharpened = ImageEnhance.Sharpness(denoised).enhance(2.0)
-            contrasted = ImageEnhance.Contrast(sharpened).enhance(2.5)
-            threshold = self._calculate_otsu_threshold(contrasted)
-            return contrasted.point(lambda p: 255 if p > threshold else 0)
+            sharpened = denoised.filter(ImageFilter.UnsharpMask(radius=1.0, percent=140, threshold=1))
+            return ImageEnhance.Contrast(sharpened).enhance(1.35)
 
         if preprocess_mode == PreprocessMode.LEGACY_TESSERACT_BIN.value:
-            image = image.resize((width * 4, height * 4), Image.LANCZOS)
+            image = image.resize((width * scale, height * scale), Image.LANCZOS)
             gray = image.convert("L")
             sharpened = ImageEnhance.Sharpness(gray).enhance(2.0)
             contrasted = ImageEnhance.Contrast(sharpened).enhance(2.5)
             threshold = self._calculate_otsu_threshold(contrasted)
             return contrasted.point(lambda p: 255 if p > threshold else 0)
 
-        image = image.resize((width * 4, height * 4), Image.LANCZOS)
-        gray = image.convert("L")
-        sharpened = ImageEnhance.Sharpness(gray).enhance(2.0)
-        contrasted = ImageEnhance.Contrast(sharpened).enhance(2.5)
-        threshold = self._calculate_otsu_threshold(contrasted)
-        return contrasted.point(lambda p: 255 if p > threshold else 0)
+        image = image.resize((width * scale, height * scale), Image.LANCZOS)
+        image = image.filter(ImageFilter.UnsharpMask(radius=1.2, percent=130, threshold=2))
+        image = ImageOps.autocontrast(image, cutoff=1)
+        return ImageEnhance.Contrast(image).enhance(1.1)
 
     def _calculate_otsu_threshold(self, image: Image.Image) -> int:
         """Calculate Otsu threshold for binarization / 大津の二値化閾値を計算"""
@@ -311,6 +332,27 @@ class ImageProcessor:
         except ValueError:
             return OCREngineType.EASYOCR
 
+    def _score_result(self, result: OCRResult) -> float:
+        """Simple score for OCR retry selection / OCR再試行時の簡易スコア"""
+
+        text_len = len(result.text.strip())
+        return (text_len * 0.01) + max(0.0, result.confidence)
+
+    def _needs_easyocr_retry(self, result: OCRResult) -> bool:
+        """Heuristic retry condition for low-quality OCR / OCR低品質時の再試行条件"""
+
+        stripped = result.text.strip()
+        return not stripped or len(stripped) < 4 or result.confidence < 0.25
+
+    def _next_preprocess_mode(self, preprocess_mode: str) -> str:
+        fallback_order = {
+            PreprocessMode.SCREEN_DEFAULT.value: PreprocessMode.SCREEN_LOW_CONTRAST.value,
+            PreprocessMode.SCREEN_LOW_CONTRAST.value: PreprocessMode.SCREEN_DOT_FONT.value,
+            PreprocessMode.SCREEN_DOT_FONT.value: PreprocessMode.SCREEN_DEFAULT.value,
+            PreprocessMode.LEGACY_TESSERACT_BIN.value: PreprocessMode.SCREEN_DEFAULT.value,
+        }
+        return fallback_order.get(preprocess_mode, PreprocessMode.SCREEN_DEFAULT.value)
+
     def extract_text(self, image: Image.Image, mode: str, psm_mode: str, preprocess_mode: str) -> OCRResult:
         """Extract text with EasyOCR-first strategy and Tesseract fallback / EasyOCR優先+Tesseractフォールバック"""
 
@@ -322,6 +364,15 @@ class ImageProcessor:
                 result = self.tesseract_engine.recognize(processed_image, mode, psm_mode)
             else:
                 result = self.easyocr_engine.recognize(processed_image, mode, psm_mode)
+
+                if self._needs_easyocr_retry(result):
+                    retry_mode = self._next_preprocess_mode(preprocess_mode)
+                    retry_image = self.preprocess_image(image, retry_mode)
+                    retry_result = self.easyocr_engine.recognize(retry_image, mode, psm_mode)
+                    if self._score_result(retry_result) > self._score_result(result):
+                        result = retry_result
+                        result.meta["retry_preprocess"] = retry_mode
+
                 if not result.text.strip():
                     raise RuntimeError("EasyOCR returned empty text")
         except Exception as e:
