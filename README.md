@@ -1,5 +1,8 @@
 # Abstract:
 
+Windows PowertoysのText Extractorが実装されたため、そちらの利用を推奨します。
+完全に機能や実装が被った上に、Text Extractorの方がより良いツールです。
+
 Clipboard Scouter is an OCR (Optical Character Recognition) processing tool designed to extract and analyze text and numbers from images copied to the clipboard.
 It offers various processing modes including text extraction, calculation-based operations, and table conversion.
 Users can interact with the tool through a GUI developed using Python's Tkinter library, where they can select the processing mode, view results.
